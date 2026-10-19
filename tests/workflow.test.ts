@@ -12,7 +12,7 @@ const review = readFileSync(path.join(root, ".github/workflows/grok-review.yml")
 test("ci verify runs on pull_request with Node 22 and no secrets", () => {
   assert.match(ci, /^name:\s*ci\s*$/m);
   assert.match(ci, /^on:\n {2}pull_request:\s*$/m);
-  assert.match(ci, /name:\s*verify/);
+  assert.match(ci, /name:\s*ci \/ verify/);
   assert.match(ci, /node-version:\s*22\b/);
   assert.match(ci, /npm run typecheck/);
   assert.match(ci, /npm run validate-config/);

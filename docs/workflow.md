@@ -80,7 +80,7 @@ The head check runs before the model call and again after it. A moved head fails
 
 There are two logical checks.
 
-`ci / verify` is the `verify` job in `.github/workflows/ci.yml`. It runs on `pull_request` with Node 22. It runs `tsc --noEmit`, validates `services/matter/matter-search/config.json` against the schema and the CPU/memory table, and runs the unit tests. It uses no secrets.
+`ci / verify` is the job in `.github/workflows/ci.yml` (workflow name `ci`, job name `ci / verify`). It runs on `pull_request` with Node 22. It runs `tsc --noEmit`, validates `services/matter/matter-search/config.json` against the schema and the CPU/memory table, and runs the unit tests. It uses no secrets.
 
 `grok-review` is `.github/workflows/grok-review.yml`, on `pull_request_target`, plus a commit status whose context is `grok-review`. The workflow checks out `main` and reads the Issue comments, the approved plan, and the pull request diff through the GitHub API. It does not check out or run the pull request head while `XAI_API_KEY` is available. The model is the `XAI_MODEL` repository variable. The key is the `XAI_API_KEY` secret. The client calls `POST https://api.x.ai/v1/responses` with `text.format` set to `json_schema` and `strict: true`.
 

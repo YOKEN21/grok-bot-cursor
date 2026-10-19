@@ -86,7 +86,7 @@ Implemented on branch `codex/bootstrap-foundation` from commit `46fefe4188a63cd1
 - Schema and CPU/memory validation in `src/config/`. `npm run validate-config` checks that file.
 - Plan, approval, dispatch, staleness, and allow-list parsing in `src/plan/`. The comment contract is in `docs/workflow.md`.
 - Review client, prompt, diff collection, findings schema, evidence writer, and CLI in `src/review/`.
-- GitHub Actions checks `ci / verify` (workflow `ci`, job `verify`, event `pull_request`) and `grok-review` (workflow `grok-review` on `pull_request_target`, plus a commit status whose context is `grok-review`).
+- GitHub Actions checks `ci / verify` (workflow `ci`, job name `ci / verify`, event `pull_request`) and `grok-review` (workflow `grok-review` on `pull_request_target`, plus a commit status whose context is `grok-review`).
 - Tests under `tests/` use a simulated provider. No live xAI call is made.
 
 ### Docs checked before the review client and workflow
