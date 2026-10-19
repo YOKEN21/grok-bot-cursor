@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+coverage/
+grok-review-evidence.json
+grok-review-summary.md
+grok-review-status.json
+review-input/

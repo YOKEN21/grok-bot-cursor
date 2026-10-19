@@ -74,3 +74,53 @@ I checked build-something: it targets Node `>=22.14.0`, and its `grok-client.ts`
 - There's no AWS deployment.
 
 To approve, reply here with exactly: `APPROVED BOOTSTRAP PLAN v2`
+
+## Implementation notes
+
+Implemented on branch `codex/bootstrap-foundation` from commit `46fefe4188a63cd1bcf8907bd2cb1087f10d07af`. The approval record and the approved plan above are unchanged.
+
+### What landed
+
+- Node `>=22.14.0`, TypeScript, `tsx`, the Node test runner, and Ajv.
+- Baseline config `services/matter/matter-search/config.json` for product `matter`, owner `matter`, service `matter-search`, environment `dev`, account `111111111111`, cpu `1024`, memory `2048`, desiredCount `3`, publicEndpoint `false`.
+- Schema and CPU/memory validation in `src/config/`. `npm run validate-config` checks that file.
+- Plan, approval, dispatch, staleness, and allow-list parsing in `src/plan/`. The comment contract is in `docs/workflow.md`.
+- Review client, prompt, diff collection, findings schema, evidence writer, and CLI in `src/review/`.
+- GitHub Actions checks `ci / verify` (workflow `ci`, job `verify`, event `pull_request`) and `grok-review` (workflow `grok-review` on `pull_request_target`, plus a commit status whose context is `grok-review`).
+- Tests under `tests/` use a simulated provider. No live xAI call is made.
+
+### Docs checked before the review client and workflow
+
+Checked on 19 Oct 2026:
+
+- xAI Responses API: https://docs.x.ai/developers/rest-api-reference/inference/responses
+- xAI structured outputs: https://docs.x.ai/developers/model-capabilities/text/structured-outputs
+- GitHub `pull_request_target`: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target
+- GitHub guidance on that event: https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target
+- GitHub commit statuses: https://docs.github.com/en/rest/commits/statuses#create-a-commit-status
+- GitHub job summaries: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
+- GitHub Actions artifacts: https://docs.github.com/en/actions/tutorials/store-and-share-data
+
+The client sends `POST https://api.x.ai/v1/responses` with `text.format.type` `json_schema`, `text.format.strict` `true`, and schema name `review_findings`. The model comes from the `XAI_MODEL` variable. The key comes from the `XAI_API_KEY` secret and is sent only as `Authorization: Bearer`. Output text is read from `output[].content[]` where `type` is `output_text`. `store` is `false`. `temperature` is `0`. `max_output_tokens` is `4096`.
+
+### How grok-review handles a pull request
+
+The workflow checks out `ref: main` with `persist-credentials: false`. It reads the pull request JSON and the diff through the GitHub API and passes those files to the review CLI from `main`. It does not check out the pull request head, merge ref, or fork repository. The secret is present only in that job's review step. Evidence is written to the job summary via `$GITHUB_STEP_SUMMARY` and uploaded as the artifact `grok-review-evidence.json`. The commit status is `POST /repos/{owner}/{repo}/statuses/{sha}` on the reviewed head SHA, context `grok-review`, with a short description and `target_url` set to the workflow run.
+
+### Pass/fail rule
+
+Fail when any finding is blocking, when the Issue, plan, or approval is missing, when the plan revision or head is stale, when model output is malformed, or when the API call fails. A changed path outside the plan allow-list is recorded as a blocking finding. A diff over 80000 characters is a blocking finding and is not sent. Suggestions alone pass. The model does not return a decision label. This repository does not add another assessment layer after CI.
+
+### Local check
+
+`npm run typecheck` is `tsc --noEmit`. `npm run validate-config` checks the baseline config against the schema and the CPU/memory table. `npm test` runs the unit tests. `npm run check` runs those three. Lint, mutation testing, and end-to-end testing are not implemented.
+
+### Choices and deviations
+
+- The Responses client makes one attempt. An API error fails the review. The plan does not ask for retries.
+- Allow-list mismatches are blocking findings produced locally. The reference repository's structural check that required `iam/<product>-task-roles.json` was not copied. This repository has no IAM catalog, and the approved file list does not include one.
+- Pairs in the CPU/memory table are valid, including pairs above the baseline 1024/2048. Invalid pairs fail validation. The reference risk-assessor SIZE-01 preferred-size concern was not copied.
+- A duplicate `[Dispatch]` for the same Issue and plan revision is detected and tested. It does not by itself fail `grok-review`. The plan uses that signal to avoid a second launch.
+- GitHub Actions also records the `grok-review` workflow job. The commit status context on the reviewed SHA is `grok-review`. The other logical check is `ci / verify`. No GO/HUMAN/NO-GO layer is present.
+- The plan described the Issue records in prose. `docs/workflow.md` defines the field labels the parser accepts. The plan hash is SHA-256 of the comment body with CRLF normalized to LF and surrounding whitespace removed.
+- Action steps use `actions/checkout@v4`, `actions/setup-node@v4`, and `actions/upload-artifact@v4`.

@@ -1,0 +1,12 @@
+---
+description: Stay inside the named Issue, plan revision, and allow-list
+alwaysApply: true
+---
+
+# Approved scope
+
+- Name the approved Issue number and plan revision before editing.
+- Read the `[Plan]` comment and the `[Approval record]`.
+- Edit only the plan's allowed paths. An empty allow-list allows nothing.
+- Run `npm run check` before opening the pull request.
+- Stop at the pull request. Do not merge.

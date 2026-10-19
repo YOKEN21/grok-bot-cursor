@@ -1,0 +1,12 @@
+---
+description: Keep the two logical checks and do not claim checks that are not implemented
+alwaysApply: true
+---
+
+# Checks
+
+- The logical checks are `ci / verify` and `grok-review`.
+- `ci / verify` runs on `pull_request`, uses Node 22, and uses no secrets.
+- `grok-review` fails on a blocking finding, a missing Issue, plan, or approval, a stale plan or head, malformed model output, or an API error. Suggestions alone pass.
+- Do not add another assessment layer.
+- Do not claim lint, mutation, or end-to-end results unless those checks are implemented.
