@@ -6,7 +6,7 @@ This repository records platform changes as GitHub Issues and pull requests. It 
 
 The Liaison opens a `[Request]` Issue, passes `[Platform question]` comments to the developer, and posts the answer as `[Developer reply]`. The Liaison and the Platform Engineer do not message each other directly.
 
-The Platform Engineer reads the Issue, posts a versioned plan, and waits for Kenny Han to approve that exact revision in the Grok Bot room "Platform Requests". After approval, the Platform Engineer posts an `[Approval record]` and one `[Dispatch]` on the Issue, then launches one Cursor cloud agent. The agent opens one pull request and stops. Merging is a human decision.
+The Platform Engineer reads the Issue, posts a versioned plan, and waits for Kenny Han to approve that exact revision in the Grok Bot room "Platform Requests". After approval, the Platform Engineer posts an `[Approval record]` on the Issue. Before launching, it checks for an existing `[Dispatch]` for that Issue and plan revision. After a successful launch, it records the run ID that the launch actually returned. It never invents or guesses a run ID. If it is unclear whether a launch succeeded, it reconciles with the existing run before trying again. The assigned agent opens one pull request and stops. Merging is a human decision.
 
 These records are written by the Platform Engineer bot with Kenny's shared credentials. They are audit context, not a separate proof of human identity. The boundaries in this repository rest on instructions, not on technical isolation.
 
@@ -59,7 +59,11 @@ Issue: #<issue>
 Plan-Revision: v<N>
 ```
 
-A second dispatch for the same Issue and plan revision is a duplicate. The Platform Engineer does not launch another agent for that revision. Duplicate detection does not by itself fail `grok-review`.
+`<id>` is the run ID returned by a successful launch. Never invent or guess a run ID.
+
+Before launching, the Platform Engineer checks for an existing dispatch for that Issue and plan revision. If one exists, it does not launch again. After a successful launch, it posts the run ID the launch returned. If it is unclear whether a launch succeeded, it reconciles with the existing run before trying again.
+
+A second dispatch for the same Issue and plan revision is a duplicate. Duplicate detection does not by itself fail `grok-review`. The assigned coding agent carries on when the recorded run ID is its own run, and stops when that run ID belongs to a different run.
 
 ## Pull request link
 

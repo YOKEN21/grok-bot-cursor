@@ -42,6 +42,13 @@ export async function reviewPullRequest(input: ReviewInput): Promise<Evidence> {
       message: "pull request diff exceeded 80000 characters and was not sent for review",
     });
   }
+  for (const header of collected.unparsedHeaders) {
+    findings.push({
+      severity: "blocking",
+      path: "(diff header)",
+      message: `diff header could not be parsed: ${header}`,
+    });
+  }
 
   const planReady = assessment.ok && assessment.plan !== null && !collected.truncated;
   if (planReady && assessment.plan) {

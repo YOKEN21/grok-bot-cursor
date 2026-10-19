@@ -14,7 +14,11 @@ Name both of these before editing files:
 - Issue number
 - Plan revision (`v<N>`)
 
-Read that `[Plan]` comment and the matching `[Approval record]`. The approval text is `APPROVED #<issue> plan v<N>`. The plan hash and base SHA match. If either record is missing, or a dispatch already exists for that plan revision, stop.
+Read that `[Plan]` comment and the matching `[Approval record]`. The approval text is `APPROVED #<issue> plan v<N>`. The plan hash and base SHA match. If either record is missing, stop.
+
+## Dispatch
+
+If the recorded `[Dispatch]` run ID matches this agent's own run, carry on. If the recorded run ID is a different one, stop and report the conflict. Preventing duplicate launches is the Platform bot's job before it launches anything, not the coding agent's.
 
 ## Procedure
 

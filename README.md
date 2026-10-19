@@ -42,7 +42,8 @@ Lint, mutation testing, and end-to-end testing are not implemented. The tests do
 1. A request arrives as a GitHub Issue titled `[Request] ...`.
 2. The Platform Engineer posts `[Plan] #<issue> v<N>` on the Issue.
 3. Kenny approves that revision in the Grok Bot room with `APPROVED #<issue> plan v<N>`.
-4. The Platform Engineer posts `[Approval record]` and `[Dispatch] run <id>` on the Issue and launches one cloud agent.
-5. The agent opens one pull request and stops. Merging is a human decision.
+4. The Platform Engineer posts `[Approval record]` on the Issue.
+5. Before launching, the Platform Engineer checks for an existing `[Dispatch]` for that Issue and plan revision. After a successful launch, it records the run ID the launch actually returned. It never invents or guesses a run ID. If it is unclear whether a launch succeeded, it reconciles with the existing run before trying again.
+6. The assigned agent opens one pull request and stops. Merging is a human decision.
 
 The Issue loop, the comment format, and the trust boundaries are in [docs/workflow.md](docs/workflow.md). Agent instructions are in [AGENTS.md](AGENTS.md).

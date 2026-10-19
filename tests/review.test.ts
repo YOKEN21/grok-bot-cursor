@@ -16,7 +16,7 @@ import {
   ResponsesApiError,
   type ReviewProvider,
 } from "../src/review/client.js";
-import { MAX_DIFF_CHARS } from "../src/review/diff.js";
+import { changedFiles, MAX_DIFF_CHARS } from "../src/review/diff.js";
 import { buildCommitStatus, PASS_FAIL_RULE, renderSummary, STATUS_CONTEXT } from "../src/review/evidence.js";
 import { findingsSchema } from "../src/review/findings.js";
 import { reviewPullRequest } from "../src/review/review.js";
@@ -133,6 +133,69 @@ test("a path outside the allow-list is a blocking finding", async () => {
   const result = await review({ diff, provider: providerReturning(findingsJson([])) });
   assert.equal(result.result, "fail");
   assert.equal(result.findings.some((finding) => finding.path === "README.md" && finding.severity === "blocking"), true);
+});
+
+test("a spaced path diff cannot pass the allow-list check", async () => {
+  const diff = "diff --git a/secret file.txt b/secret file.txt\n";
+  assert.deepEqual(changedFiles(diff), ["secret file.txt"]);
+  const result = await review({ diff, provider: providerReturning(findingsJson([])) });
+  assert.equal(result.result, "fail");
+  assert.equal(
+    result.findings.some((finding) => finding.severity === "blocking" && finding.path === "secret file.txt"),
+    true,
+  );
+});
+
+test("a quoted path diff cannot pass the allow-list check", async () => {
+  const diff = 'diff --git "a/secret file.txt" "b/secret file.txt"\n';
+  assert.deepEqual(changedFiles(diff), ["secret file.txt"]);
+  const result = await review({
+    diff,
+    provider: providerReturning(
+      findingsJson([{ severity: "suggestion", path: "secret file.txt", message: "quote the name in the plan" }]),
+    ),
+  });
+  assert.equal(result.result, "fail");
+  assert.equal(
+    result.findings.some((finding) => finding.severity === "blocking" && finding.path === "secret file.txt"),
+    true,
+  );
+});
+
+test("a rename out of README.md cannot pass the allow-list check", async () => {
+  const diff = [
+    "diff --git a/README.md b/services/matter/matter-search/config.json",
+    "similarity index 100%",
+    "rename from README.md",
+    "rename to services/matter/matter-search/config.json",
+    "",
+  ].join("\n");
+  assert.deepEqual(changedFiles(diff), ["README.md", "services/matter/matter-search/config.json"]);
+  const result = await review({
+    diff,
+    provider: providerReturning(
+      findingsJson([
+        {
+          severity: "suggestion",
+          path: "services/matter/matter-search/config.json",
+          message: "destination is in scope",
+        },
+      ]),
+    ),
+  });
+  assert.equal(result.result, "fail");
+  assert.equal(result.findings.some((finding) => finding.severity === "blocking" && finding.path === "README.md"), true);
+});
+
+test("an unparsed diff header fails closed", async () => {
+  const diff = "diff --git nope\n";
+  assert.deepEqual(changedFiles(diff), []);
+  const result = await review({
+    diff,
+    provider: providerReturning(findingsJson([{ severity: "suggestion", path: "README.md", message: "looks empty" }])),
+  });
+  assert.equal(result.result, "fail");
+  assert.match(result.findings.map((finding) => finding.message).join("\n"), /could not be parsed/);
 });
 
 test("a diff over the size cap fails before the provider is called", async () => {
