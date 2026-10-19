@@ -1,0 +1,111 @@
+name: grok-review
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  statuses: write
+
+concurrency:
+  group: grok-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  grok-review:
+    name: grok-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Confirm the checkout is not the pull request head
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          if [ "$head" = "$PR_HEAD" ]; then
+            echo "checkout resolved to the pull request head; refusing to continue"
+            exit 1
+          fi
+
+      - name: Fetch the pull request as data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*)
+              echo "pull request number is not numeric"
+              exit 1
+              ;;
+          esac
+          mkdir -p review-input
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > review-input/pull.json
+          gh api -H "Accept: application/vnd.github.diff" "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > review-input/pull.diff
+
+      - name: Review the pull request
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          XAI_MODEL: ${{ vars.XAI_MODEL }}
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          npm run review -- \
+            --pull review-input/pull.json \
+            --diff review-input/pull.diff \
+            --evidence grok-review-evidence.json \
+            --summary grok-review-summary.md \
+            --status-out grok-review-status.json \
+            --reviewed-sha "$REVIEWED_SHA" \
+            --recheck-head \
+            --target-url "$TARGET_URL"
+
+      - name: Publish the job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f grok-review-summary.md ]; then
+            cat grok-review-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload grok-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grok-review-evidence.json
+          path: grok-review-evidence.json
+          if-no-files-found: warn
+
+      - name: Set the grok-review commit status
+        if: success() || failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          npm run review -- \
+            --post-status \
+            --evidence grok-review-evidence.json \
+            --status-file grok-review-status.json \
+            --reviewed-sha "$REVIEWED_SHA" \
+            --target-url "$TARGET_URL"

@@ -1,0 +1,11 @@
+diff --git a/services/matter/matter-search/config.json b/services/matter/matter-search/config.json
+index 1111111..2222222 100644
+--- a/services/matter/matter-search/config.json
++++ b/services/matter/matter-search/config.json
+@@ -6,7 +6,7 @@
+   "cpu": 1024,
+   "memory": 2048,
+-  "desiredCount": 3,
++  "desiredCount": 4,
+   "publicEndpoint": false
+ }
