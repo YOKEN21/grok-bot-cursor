@@ -6,7 +6,7 @@ This repository records platform changes as GitHub Issues and pull requests. It 
 
 The Liaison opens a `[Request]` Issue, passes `[Platform question]` comments to the developer, and posts the answer as `[Developer reply]`. The Liaison and the Platform Engineer do not message each other directly.
 
-The Platform Engineer reads the Issue, posts a versioned plan, and waits for Kenny Han to approve that exact revision in the Grok Bot room "Platform Requests". After approval, the Platform Engineer posts an `[Approval record]` on the Issue. Before launching, it checks for an existing `[Dispatch]` for that Issue and plan revision. After a successful launch, it records the run ID that the launch actually returned. It never invents or guesses a run ID. If it is unclear whether a launch succeeded, it reconciles with the existing run before trying again. The assigned agent opens one pull request and stops. Merging is a human decision.
+The Platform Engineer reads the Issue, posts a versioned plan, and waits for Kenny Han to approve that exact revision in his own 1:1 Grok Bot chat with the Platform Engineer. After approval, the Platform Engineer posts an `[Approval record]` on the Issue. Before launching, it checks for an existing `[Dispatch]` for that Issue and plan revision. After a successful launch, it records the run ID that the launch actually returned. It never invents or guesses a run ID. If it is unclear whether a launch succeeded, it reconciles with the existing run before trying again. The assigned agent opens one pull request and stops. Merging is a human decision.
 
 These records are written by the Platform Engineer bot with Kenny's shared credentials. They are audit context, not a separate proof of human identity. The boundaries in this repository rest on instructions, not on technical isolation.
 
@@ -31,7 +31,7 @@ Every labeled section is required. `Allowed-Paths`, `Tests`, and `Out-of-scope` 
 
 ## Approval
 
-Kenny approves in the Grok Bot room with this exact text:
+Kenny approves in his own 1:1 Grok Bot chat with the Platform Engineer, not in the "Platform Requests" room, with this exact text:
 
 ```text
 APPROVED #<issue> plan v<N>
@@ -49,7 +49,7 @@ Approved-Text: APPROVED #<issue> plan v<N>
 When: <ISO-8601 time with a timezone, such as 2026-10-19T10:32:38Z>
 ```
 
-`Approved-Text` must match the room approval exactly. `Plan-Hash` and `Base-SHA` must match the latest plan comment. `When` is the time recorded on the Issue.
+`Approved-Text` must match that chat approval exactly. `Plan-Hash` and `Base-SHA` must match the latest plan comment. `When` is the time recorded on the Issue.
 
 ## Dispatch
 
@@ -96,9 +96,27 @@ The model returns findings only. It does not return a decision label. A blocking
 
 `grok-review` runs from `main`. It cannot run on the bootstrap pull request, because `main` does not contain the workflow until that pull request merges. The first live review is expected on the rehearsal pull request that raises `desiredCount` from 3 to 4. Someone with GitHub web access needs to add `XAI_API_KEY` and `XAI_MODEL` before that rehearsal. The key is not pasted into chat.
 
-## Polling and routines
+## Events
 
-After this foundation is merged, the Platform Engineer polls every five minutes, deduplicates by Issue, comment, plan, and run id, and stays quiet when nothing has changed. Routines are not created by this bootstrap. They are created only after the foundation is merged, they start paused, and they are turned on only after Kenny has seen their exact wording. Routines do not expire on their own. Each run checks the deadline. After 20 Oct 2026 at 2:00pm Australia/Sydney, the next run pauses the routine and reports that in the Grok Bot room.
+The bots are notified by events, not by polling. `.github/workflows/notify-grok-bots.yml` runs on `issues: [opened]` and `issue_comment: [created]`. It has top-level `permissions: {}`, one job with one shell step, no checkout, and no third-party actions. Event data and secrets reach the script only through `env:`. The JSON payload is built with `jq -n --arg/--argjson`.
+
+The comment prefix is the leading bracketed tag of the comment body, such as `[Developer reply]`, or empty if there is none. Routing:
+
+| Event | Sent to | Payload |
+| --- | --- | --- |
+| Issue opened (not a pull request) | Platform | `{repo, issue_number, issue_title, action: "opened"}` |
+| Issue comment with prefix `[Developer reply]` | Platform | `{repo, issue_number, comment_id, comment_prefix, action: "comment"}` |
+| Issue comment with prefix `[Platform question]`, `[Plan]`, or `[Dispatch]` | Liaison | `{repo, issue_number, comment_id, comment_prefix, action: "comment"}` |
+| Any comment on a pull request, whatever its prefix | Liaison | `{repo, issue_number, comment_id, comment_prefix, action: "comment"}` |
+| Any other Issue comment, including `[Approval record]` and untagged comments | Not sent | |
+
+For a pull request comment, `issue_number` is the pull request number. The comment body is never sent.
+
+Each notification is one `curl -sS --fail -m 8` POST with no retry, with the headers `Content-Type: application/json`, `Authorization: Bearer <key>`, and `X-Automation-Key: <key>`. A failed POST fails the run. Secrets are never echoed.
+
+The workflow reads four repository secrets: `PLATFORM_WEBHOOK_URL`, `PLATFORM_WEBHOOK_KEY`, `LIAISON_WEBHOOK_URL`, and `LIAISON_WEBHOOK_KEY`. Kenny adds them by hand in the repository settings. They are not pasted into chat. If the URL or key for the chosen target is empty, the step prints a notice and exits 0 without posting.
+
+The Platform Engineer also uses native GitHub pull-request listeners instead of polling.
 
 ## Local check
 

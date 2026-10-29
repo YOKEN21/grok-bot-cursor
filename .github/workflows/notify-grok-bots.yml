@@ -1,0 +1,103 @@
+name: notify-grok-bots
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  notify:
+    name: notify-grok-bots
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Route event to Grok Bot webhook
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PLATFORM_WEBHOOK_URL: ${{ secrets.PLATFORM_WEBHOOK_URL }}
+          PLATFORM_WEBHOOK_KEY: ${{ secrets.PLATFORM_WEBHOOK_KEY }}
+          LIAISON_WEBHOOK_URL: ${{ secrets.LIAISON_WEBHOOK_URL }}
+          LIAISON_WEBHOOK_KEY: ${{ secrets.LIAISON_WEBHOOK_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$ISSUE_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::notice::No Issue number on this event; nothing sent."
+            exit 0
+          fi
+
+          case "$EVENT_NAME" in
+            issues)
+              if [[ "$IS_PULL_REQUEST" == "true" ]]; then
+                echo "::notice::Opened item is a pull request; nothing sent."
+                exit 0
+              fi
+              target=PLATFORM
+              payload="$(jq -n \
+                --arg repo "$REPO" \
+                --argjson issue_number "$ISSUE_NUMBER" \
+                --arg issue_title "$ISSUE_TITLE" \
+                '{repo: $repo, issue_number: $issue_number, issue_title: $issue_title, action: "opened"}')"
+              ;;
+            issue_comment)
+              if [[ ! "$COMMENT_ID" =~ ^[0-9]+$ ]]; then
+                echo "::notice::No comment id on this event; nothing sent."
+                exit 0
+              fi
+              body="${COMMENT_BODY#"${COMMENT_BODY%%[![:space:]]*}"}"
+              tag_re=$'^(\\[[^]\n]*\\])'
+              comment_prefix=""
+              if [[ "$body" =~ $tag_re ]]; then
+                comment_prefix="${BASH_REMATCH[1]}"
+              fi
+              if [[ "$IS_PULL_REQUEST" == "true" ]]; then
+                target=LIAISON
+              else
+                case "$comment_prefix" in
+                  "[Developer reply]") target=PLATFORM ;;
+                  "[Platform question]" | "[Plan]" | "[Dispatch]") target=LIAISON ;;
+                  *)
+                    echo "::notice::Issue comment prefix is not routed; nothing sent."
+                    exit 0
+                    ;;
+                esac
+              fi
+              payload="$(jq -n \
+                --arg repo "$REPO" \
+                --argjson issue_number "$ISSUE_NUMBER" \
+                --argjson comment_id "$COMMENT_ID" \
+                --arg comment_prefix "$comment_prefix" \
+                '{repo: $repo, issue_number: $issue_number, comment_id: $comment_id, comment_prefix: $comment_prefix, action: "comment"}')"
+              ;;
+            *)
+              echo "::notice::Event $EVENT_NAME is not routed; nothing sent."
+              exit 0
+              ;;
+          esac
+
+          url_var="${target}_WEBHOOK_URL"
+          key_var="${target}_WEBHOOK_KEY"
+          url="${!url_var}"
+          key="${!key_var}"
+          if [[ -z "$url" || -z "$key" ]]; then
+            echo "::notice::${url_var} or ${key_var} is not set; nothing sent."
+            exit 0
+          fi
+
+          printf 'Authorization: Bearer %s\nX-Automation-Key: %s\n' "$key" "$key" \
+            | curl -sS --fail -m 8 -o /dev/null \
+                -X POST \
+                -H "Content-Type: application/json" \
+                -H @- \
+                --data "$payload" \
+                "$url"
+          echo "Sent $EVENT_NAME notification for #$ISSUE_NUMBER to the $target webhook."
