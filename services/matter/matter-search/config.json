@@ -6,6 +6,6 @@
   "account": "111111111111",
   "cpu": 1024,
   "memory": 2048,
-  "desiredCount": 3,
+  "desiredCount": 4,
   "publicEndpoint": false
 }
